@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>自动续作监督器</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <main>
+    <header class="app-header">
+      <h1>自动续作监督器</h1>
+      <div class="page-tabs" role="tablist" aria-label="功能页">
+        <button id="currentTabButton" class="page-tab active" type="button" role="tab" aria-selected="true">当前页</button>
+        <button id="manageTabButton" class="page-tab" type="button" role="tab" aria-selected="false">多页面 <span id="tabTargetCount">0</span></button>
+        <button id="optionsTabButton" class="page-tab" type="button" role="tab" aria-selected="false">选项</button>
+        <button id="consoleTabButton" class="page-tab" type="button" role="tab" aria-selected="false">控制台</button>
+      </div>
+    </header>
+
+    <section id="currentPanel" class="panel active" role="tabpanel">
+      <section class="status-card">
+        <div class="row"><span>状态</span><strong id="statusText">读取中…</strong></div>
+        <div class="row"><span>当前次数</span><strong id="cycleText">0 / 100</strong></div>
+        <div class="row"><span>监督页面</span><strong id="targetCountText">0</strong></div>
+      </section>
+
+      <label>续作指令<input id="continueText" type="text" value="继续" maxlength="80" /></label>
+      <div class="grid">
+        <label>等待时间<input id="delaySeconds" type="number" min="1" max="60" value="3" /></label>
+        <label>最大轮次<input id="maxCycles" type="number" min="1" max="500" value="100" /></label>
+      </div>
+
+      <div class="buttons">
+        <button id="startButton" class="primary">监督当前页</button>
+        <button id="stopButton" class="secondary">取消当前页</button>
+      </div>
+    </section>
+
+    <section id="managePanel" class="panel" role="tabpanel" hidden>
+      <div class="manage-head">
+        <strong>页面监督管理</strong>
+        <button id="refreshButton" class="mini">刷新</button>
+      </div>
+      <div id="pageList" class="page-list"><div class="empty">正在读取页面…</div></div>
+    </section>
+
+    <section id="optionsPanel" class="panel" role="tabpanel" hidden>
+      <div class="section-title">续作规则</div>
+      <section class="option-card">
+        <label class="check-option" for="continueWithoutDownload">
+          <input id="continueWithoutDownload" type="checkbox" checked />
+          <strong>文件下载未确认时也继续（无文件始终继续）</strong>
+        </label>
+      </section>
+    </section>
+
+    <section id="consolePanel" class="panel console-panel" role="tabpanel" hidden>
+      <section class="console-card" aria-label="监督器输出">
+        <div class="console-head">
+          <span>当前页输出</span>
+          <button id="clearConsoleButton" class="console-clear" type="button">清空</button>
+        </div>
+        <div id="consoleOutput" class="console-output" role="log" aria-live="polite">
+          <div class="console-empty">等待输出…</div>
+        </div>
+      </section>
+    </section>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
