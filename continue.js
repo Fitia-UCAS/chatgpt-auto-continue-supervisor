@@ -1,6 +1,6 @@
 (()=>{
-if(window.__CHATGPT_AUTO_CONTINUE_SUPERVISOR_V1030__)return;
-window.__CHATGPT_AUTO_CONTINUE_SUPERVISOR_V1030__=true;
+if(window.__CHATGPT_AUTO_CONTINUE_CONTINUE_V1030__)return;
+window.__CHATGPT_AUTO_CONTINUE_CONTINUE_V1030__=true;
 
 const VERSION='1.0.30';
 const D={
@@ -158,7 +158,7 @@ function assistantSignature(){
 
 async function patchState(patch={}){
   s={...s,...patch};
-  const res=await chrome.runtime.sendMessage({type:'SUPERVISOR_PATCH_TARGET',patch}).catch(()=>null);
+  const res=await chrome.runtime.sendMessage({type:'CONTINUE_PATCH_TARGET',patch}).catch(()=>null);
   if(!res?.ok)throw new Error(res?.error||'无法保存当前监督页状态');
   if(res.state)s={...D,...res.state};
   return s;
@@ -180,12 +180,12 @@ async function status(x,extra={},level="info"){
 }
 async function stop(reason){
   s.enabled=false;s.pendingContinueKey="";s.pendingContinueAt=0;s.pendingContinueMode="";s.lastStatus=reason;
-  await chrome.runtime.sendMessage({type:'SUPERVISOR_STOP_SELF',reason}).catch(()=>null);
+  await chrome.runtime.sendMessage({type:'CONTINUE_STOP_SELF',reason}).catch(()=>null);
 }
 
 async function targetGate(){
   try{
-    return await chrome.runtime.sendMessage({type:'SUPERVISOR_IS_TARGET',url:location.href});
+    return await chrome.runtime.sendMessage({type:'CONTINUE_IS_TARGET',url:location.href});
   }catch{
     return {ok:false,isTarget:false};
   }
@@ -386,7 +386,7 @@ async function downloadsSince(since,ms=1800,names=[]){
 
 async function suppressNativeDownloadUi(durationMs=4200){
   try{
-    const res=await chrome.runtime.sendMessage({type:'SUPERVISOR_SUPPRESS_DOWNLOAD_UI',durationMs});
+    const res=await chrome.runtime.sendMessage({type:'CONTINUE_SUPPRESS_DOWNLOAD_UI',durationMs});
     return !!res?.ok;
   }catch{return false}
 }
@@ -398,15 +398,15 @@ function newDownloadUiBatchToken(){
 async function beginNativeDownloadUiBatch(){
   const token=newDownloadUiBatchToken();
   try{
-    const res=await chrome.runtime.sendMessage({type:'SUPERVISOR_BEGIN_DOWNLOAD_UI_BATCH',token});
+    const res=await chrome.runtime.sendMessage({type:'CONTINUE_BEGIN_DOWNLOAD_UI_BATCH',token});
     if(res?.token===token){
-      if(!res?.ok)console.warn('[AutoContinueSupervisor] Edge 下载面板接口本次未确认，批次结束时仍会执行安全恢复',res?.error||'未知错误');
-      if(res?.warning)console.warn('[AutoContinueSupervisor] Edge 下载面板恢复兜底暂不可用',res.warning);
+      if(!res?.ok)console.warn('[AutoContinueContinue] Edge 下载面板接口本次未确认，批次结束时仍会执行安全恢复',res?.error||'未知错误');
+      if(res?.warning)console.warn('[AutoContinueContinue] Edge 下载面板恢复兜底暂不可用',res.warning);
       return token;
     }
-    console.warn('[AutoContinueSupervisor] 无法建立 Edge 下载面板关闭批次',res?.error||'未知错误');
+    console.warn('[AutoContinueContinue] 无法建立 Edge 下载面板关闭批次',res?.error||'未知错误');
   }catch(e){
-    console.warn('[AutoContinueSupervisor] 无法持续关闭 Edge 下载面板',e);
+    console.warn('[AutoContinueContinue] 无法持续关闭 Edge 下载面板',e);
   }
   return '';
 }
@@ -414,11 +414,11 @@ async function beginNativeDownloadUiBatch(){
 async function endNativeDownloadUiBatch(token){
   if(!token)return;
   try{
-    const res=await chrome.runtime.sendMessage({type:'SUPERVISOR_END_DOWNLOAD_UI_BATCH',token});
-    if(!res?.ok)console.warn('[AutoContinueSupervisor] 无法恢复 Edge 下载面板状态',res?.error||'未知错误');
-    if(res?.warning)console.warn('[AutoContinueSupervisor] Edge 下载面板恢复兜底暂不可用',res.warning);
+    const res=await chrome.runtime.sendMessage({type:'CONTINUE_END_DOWNLOAD_UI_BATCH',token});
+    if(!res?.ok)console.warn('[AutoContinueContinue] 无法恢复 Edge 下载面板状态',res?.error||'未知错误');
+    if(res?.warning)console.warn('[AutoContinueContinue] Edge 下载面板恢复兜底暂不可用',res.warning);
   }catch(e){
-    console.warn('[AutoContinueSupervisor] 无法恢复 Edge 下载面板状态',e);
+    console.warn('[AutoContinueContinue] 无法恢复 Edge 下载面板状态',e);
   }
 }
 
@@ -439,7 +439,7 @@ async function lateConfirmDownload(messageKey,since,expectedCount=1,names=[]){
     }
     if(res?.matches?.length){
       await chrome.runtime.sendMessage({
-        type:'SUPERVISOR_LATE_DOWNLOAD_CONFIRMED',
+        type:'CONTINUE_LATE_DOWNLOAD_CONFIRMED',
         messageKey,
         expectedCount:Math.max(1,Number(expectedCount)||1),
         matches:res.matches.slice(0,12)
@@ -917,7 +917,7 @@ function capturePreviewState(messageRoot,expectedFilename=''){
   };
 }
 
-async function closePreviewOpenedBySupervisor(messageRoot,expectedFilename='',before=null,forceCurrent=false){
+async function closePreviewOpenedByContinue(messageRoot,expectedFilename='',before=null,forceCurrent=false){
   const baseline=before||{roots:new Set(),rootText:new Map(),controls:new Set()};
   const expected=clean(expectedFilename).toLowerCase();
   const rootText=root=>clean(root.innerText||root.textContent).toLowerCase();
@@ -970,7 +970,7 @@ async function closePreviewOpenedBySupervisor(messageRoot,expectedFilename='',be
 
     // A few preview builds expose no semantic label on their close affordance. Escape is
     // reserved for a newly-created preview root, so an unrelated preview that was already
-    // open before the supervisor clicked the file is left alone.
+    // open before the extension clicked the file is left alone.
     if(ownedPreviewOpen()){
       const init={key:'Escape',code:'Escape',keyCode:27,which:27,bubbles:true,cancelable:true,composed:true};
       document.dispatchEvent(new KeyboardEvent('keydown',init));
@@ -978,7 +978,7 @@ async function closePreviewOpenedBySupervisor(messageRoot,expectedFilename='',be
       return await waitUntil(()=>!ownedPreviewOpen(),700);
     }
   }catch(e){
-    console.warn('[AutoContinueSupervisor] 无法关闭自动打开的文件预览',e);
+    console.warn('[AutoContinueContinue] 无法关闭自动打开的文件预览',e);
   }
   return false;
 }
@@ -1087,7 +1087,7 @@ async function clickFileTarget(item,messageRoot,sourceMessageKey=''){
   const beforePath=`${location.origin}${location.pathname}`;
   const stableMessageKey=sourceMessageKey||key(messageRoot);
   const previewBefore=capturePreviewState(messageRoot,expected);
-  let clickedBySupervisor=false;
+  let clickedByContinue=false;
   let fileEntryClicked=false;
 
   try{
@@ -1096,7 +1096,7 @@ async function clickFileTarget(item,messageRoot,sourceMessageKey=''){
   await status('文件下载：检查消息内直接下载按钮/箭头');
   let direct=localDirectDownloadControl(item);
   if(direct){
-    clickedBySupervisor=true;
+    clickedByContinue=true;
     const dl=await clickDownloadControlWithMenu(direct,expected,DOWNLOAD_CONFIRM_MS);
     if(dl.navigated)return {attempted:true,downloaded:false,navigated:true,method:'message-download-navigation'};
     if(dl.downloaded)return {attempted:dl.clicked,downloaded:true,navigated:false,method:dl.menu?'message-download-menu':'message-button'};
@@ -1110,7 +1110,7 @@ async function clickFileTarget(item,messageRoot,sourceMessageKey=''){
     HOVER_DISCOVERY_MS
   );
   if(hoverDirect&&hoverDirect!==direct){
-    clickedBySupervisor=true;
+    clickedByContinue=true;
     const dl=await clickDownloadControlWithMenu(hoverDirect,expected,DOWNLOAD_CONFIRM_MS);
     if(dl.navigated)return {attempted:true,downloaded:false,navigated:true,method:'hover-download-navigation'};
     if(dl.downloaded)return {attempted:true,downloaded:true,navigated:false,method:dl.menu?'hover-download-menu':'hover-button'};
@@ -1121,7 +1121,7 @@ async function clickFileTarget(item,messageRoot,sourceMessageKey=''){
   await suppressNativeDownloadUi(4200);
   const since=Date.now()-80;
   try{
-    clickedBySupervisor=true;
+    clickedByContinue=true;
     fileEntryClicked=true;
     el.click();
   }catch{return {attempted:false,downloaded:false,navigated:false,method:'opener-failed'}}
@@ -1156,10 +1156,10 @@ async function clickFileTarget(item,messageRoot,sourceMessageKey=''){
   }
   return {attempted:true,downloaded:false,navigated:false,method:'preview-download-unconfirmed'};
   }finally{
-    if(clickedBySupervisor&&`${location.origin}${location.pathname}`===beforePath){
+    if(clickedByContinue&&`${location.origin}${location.pathname}`===beforePath){
       const liveMessage=msgs().filter(x=>messageRole(x)==='assistant').find(x=>key(x)===stableMessageKey);
       const liveRoot=assistantTurnRoot(liveMessage)||messageRoot;
-      await closePreviewOpenedBySupervisor(liveRoot,expected,previewBefore,fileEntryClicked);
+      await closePreviewOpenedByContinue(liveRoot,expected,previewBefore,fileEntryClicked);
     }
   }
 }
@@ -1292,7 +1292,7 @@ function continuationDecision({fileSignal,downloadComplete=false,allowUnconfirme
 
 // Startup/backfill path: if the user has already spoken after the last generated file,
 // normal tail-only supervision would miss that previous assistant link. Find the newest
-// earlier assistant turn with a file signal and download it exactly once per supervisor start.
+// earlier assistant turn with a file signal and download it exactly once per continuation start.
 function historicalFileCandidate(){
   if(s.lastBackfillMessageKey||s.lastHandledMessageKey||(s.cycleCount||0)>0||s.pendingContinueKey)return null;
   const all=msgs();
@@ -1650,7 +1650,7 @@ async function check(){
     if(DONE.some(r=>r.test(tx))){await stop('研究完成，已停止');return}
     schedule(Math.max(150,due-Date.now()+50));
   }catch(e){
-    console.error('[AutoContinueSupervisor]',e);
+    console.error('[AutoContinueContinue]',e);
     await stop(`错误：${e?.message||e}`);
   }finally{
     busy=false;
@@ -1682,11 +1682,11 @@ obs.observe(document.documentElement,{
 });
 
 chrome.runtime.onMessage.addListener((m,_sender,sendResponse)=>{
-  if(m?.type==='SUPERVISOR_PING'){
+  if(m?.type==='CONTINUE_PING'){
     sendResponse({ok:true,version:VERSION});
     return true;
   }
-  if(m?.type==='SUPERVISOR_PAGE_INFO'){
+  if(m?.type==='CONTINUE_PAGE_INFO'){
     const all=msgs();
     const health=conversationHealth();
     const assistantCount=all.filter(x=>messageRole(x)==='assistant').length;
@@ -1705,8 +1705,8 @@ chrome.runtime.onMessage.addListener((m,_sender,sendResponse)=>{
     });
     return true;
   }
-  if(m?.type==='SUPERVISOR_REFRESH')schedule(80);
-  if(m?.type==='SUPERVISOR_TICK'){
+  if(m?.type==='CONTINUE_REFRESH')schedule(80);
+  if(m?.type==='CONTINUE_TICK'){
     check();
     sendResponse({ok:true});
     return true;

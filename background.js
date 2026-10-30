@@ -1,9 +1,9 @@
 const recent = [];
-const ALARM = "chatgpt-auto-continue-supervisor-tick";
-const TARGET_PREFIX = "supervisorTarget:";
-const TARGET_INDEX_KEY = "supervisorTargetIds";
-const DOWNLOAD_UI_SESSION_KEY = "supervisorDownloadUiSuppression";
-const DOWNLOAD_UI_RECOVERY_ALARM = "chatgpt-auto-continue-supervisor-download-ui-recovery";
+const ALARM = "chatgpt-continue-tick";
+const TARGET_PREFIX = "continueTarget:";
+const TARGET_INDEX_KEY = "continueTargetIds";
+const DOWNLOAD_UI_SESSION_KEY = "continueDownloadUiSuppression";
+const DOWNLOAD_UI_RECOVERY_ALARM = "chatgpt-continue-download-ui-recovery";
 const DOWNLOAD_UI_SUPPRESS_MS = 4200;
 const DOWNLOAD_UI_SUPPRESS_MAX_MS = 10000;
 const DOWNLOAD_UI_BATCH_LEASE_MS = 180000;
@@ -468,7 +468,7 @@ async function clearTargetLogs(tabId){
 }
 
 
-async function applySupervisorSettings(settings={}){
+async function applyContinueSettings(settings={}){
   const allow = settings.continueWithoutDownload !== false;
   const ids = await readIndex();
   const now = Date.now();
@@ -491,7 +491,7 @@ async function applySupervisorSettings(settings={}){
       patch.pendingContinueMode = "";
     }
     await patchTarget(tabId, patch);
-    try{ await chrome.tabs.sendMessage(tabId,{type:"SUPERVISOR_TICK",source:"settings-change"}); }catch{}
+    try{ await chrome.tabs.sendMessage(tabId,{type:"CONTINUE_TICK",source:"settings-change"}); }catch{}
   }));
   return {ok:true,activeCount:await countActiveTargets()};
 }
@@ -541,6 +541,20 @@ async function migrateLegacySingleTarget(){
   await chrome.storage.local.set({enabled:false, lastStatus:"已迁移到多页面监督"});
 }
 
+const LEGACY_SETTINGS_KEY = "supervisorSettings";
+const LEGACY_ALARMS = ["chatgpt-auto-continue-supervisor-tick","chatgpt-auto-continue-supervisor-download-ui-recovery"];
+async function migrateLegacyNames(){
+  try{
+    const old = (await chrome.storage.local.get(LEGACY_SETTINGS_KEY))[LEGACY_SETTINGS_KEY];
+    if(old){
+      const current = (await chrome.storage.local.get("continueSettings")).continueSettings;
+      if(!current) await chrome.storage.local.set({continueSettings:old});
+      await chrome.storage.local.remove(LEGACY_SETTINGS_KEY);
+    }
+  }catch{}
+  for(const name of LEGACY_ALARMS){try{await chrome.alarms.clear(name);}catch{}}
+}
+
 async function reconcileAlarm(){
   const ids = await readIndex();
   if(ids.length){
@@ -573,11 +587,11 @@ async function wakeTarget(tabId){
   }
 
   try{
-    await chrome.tabs.sendMessage(tab.id,{type:"SUPERVISOR_TICK",source:"background-alarm"});
+    await chrome.tabs.sendMessage(tab.id,{type:"CONTINUE_TICK",source:"background-alarm"});
   }catch(e){
     try{
-      await chrome.scripting.executeScript({target:{tabId:tab.id},files:["supervisor.js"]});
-      await chrome.tabs.sendMessage(tab.id,{type:"SUPERVISOR_TICK",source:"background-alarm-reinject"});
+      await chrome.scripting.executeScript({target:{tabId:tab.id},files:["continue.js"]});
+      await chrome.tabs.sendMessage(tab.id,{type:"CONTINUE_TICK",source:"background-alarm-reinject"});
     }catch(err){
       await patchTarget(tabId,{lastStatus:`后台巡检暂时无法连接目标页：${err?.message||err}`}).catch(()=>{});
     }
@@ -615,8 +629,8 @@ chrome.tabs.onUpdated.addListener((tabId,changeInfo,tab)=>{
   }).catch(()=>{});
 });
 
-chrome.runtime.onStartup.addListener(()=>Promise.all([resetDownloadUi(),migrateLegacySingleTarget().then(reconcileAlarm)]).catch(()=>{}));
-chrome.runtime.onInstalled.addListener(()=>Promise.all([resetDownloadUi(),migrateLegacySingleTarget().then(reconcileAlarm)]).catch(()=>{}));
+chrome.runtime.onStartup.addListener(()=>Promise.all([resetDownloadUi(),migrateLegacyNames(),migrateLegacySingleTarget().then(reconcileAlarm)]).catch(()=>{}));
+chrome.runtime.onInstalled.addListener(()=>Promise.all([resetDownloadUi(),migrateLegacyNames(),migrateLegacySingleTarget().then(reconcileAlarm)]).catch(()=>{}));
 chrome.runtime.onSuspend?.addListener(()=>{
   // Do not re-enable UI in the middle of an active batch. The session marker and
   // recovery alarm survive service-worker suspension and perform a confirmed restore.
@@ -627,7 +641,7 @@ chrome.storage.onChanged.addListener((_changes,area)=>{
 });
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if(msg?.type === "SUPERVISOR_BEGIN_DOWNLOAD_UI_BATCH"){
+  if(msg?.type === "CONTINUE_BEGIN_DOWNLOAD_UI_BATCH"){
     const tabId=sender?.tab?.id||0;
     if(!tabId){sendResponse({ok:false,error:"无法确定当前监督标签页"});return true}
     getTarget(tabId).then(current=>{
@@ -637,14 +651,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_END_DOWNLOAD_UI_BATCH"){
+  if(msg?.type === "CONTINUE_END_DOWNLOAD_UI_BATCH"){
     const tabId=sender?.tab?.id||0;
     if(!tabId){sendResponse({ok:false,error:"无法确定当前监督标签页"});return true}
     endDownloadUiBatch(tabId,msg.token).then(sendResponse).catch(e=>sendResponse({ok:false,error:String(e?.message||e)}));
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_SUPPRESS_DOWNLOAD_UI"){
+  if(msg?.type === "CONTINUE_SUPPRESS_DOWNLOAD_UI"){
     const tabId=sender?.tab?.id||0;
     if(!tabId){sendResponse({ok:false,error:"无法确定当前监督标签页"});return true}
     Promise.all([getTarget(tabId),ensureDownloadUiStateLoaded()]).then(([current])=>{
@@ -700,7 +714,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
 
-  if(msg?.type === "SUPERVISOR_LATE_DOWNLOAD_CONFIRMED"){
+  if(msg?.type === "CONTINUE_LATE_DOWNLOAD_CONFIRMED"){
     const tabId = sender?.tab?.id || 0;
     if(!tabId){ sendResponse({ok:false,error:"无法确定当前监督标签页"}); return true; }
     getTarget(tabId).then(async current=>{
@@ -723,7 +737,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_IS_TARGET"){
+  if(msg?.type === "CONTINUE_IS_TARGET"){
     const senderTabId = sender?.tab?.id || 0;
     Promise.all([getTarget(senderTabId), countActiveTargets()]).then(([s,activeCount])=>{
       const senderUrl = sender?.tab?.url || msg.url || "";
@@ -740,7 +754,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_GET_TARGET"){
+  if(msg?.type === "CONTINUE_GET_TARGET"){
     const tabId = Number(msg.tabId)||0;
     Promise.all([getTarget(tabId), countActiveTargets()])
       .then(([s,activeCount])=>sendResponse({ok:true,state:s,activeCount}))
@@ -748,7 +762,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_START_TARGET"){
+  if(msg?.type === "CONTINUE_START_TARGET"){
     const tabId = Number(msg.tabId)||0;
     startTarget(tabId,msg.state||{})
       .then(async s=>sendResponse({ok:true,state:s,activeCount:await countActiveTargets()}))
@@ -756,7 +770,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_PATCH_TARGET"){
+  if(msg?.type === "CONTINUE_PATCH_TARGET"){
     const tabId = sender?.tab?.id || 0;
     if(!tabId){ sendResponse({ok:false,error:"只能由被监督的 ChatGPT 标签页更新状态"}); return true; }
     patchTarget(tabId,msg.patch||{})
@@ -765,7 +779,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_STOP_SELF"){
+  if(msg?.type === "CONTINUE_STOP_SELF"){
     const tabId = sender?.tab?.id || 0;
     if(!tabId){ sendResponse({ok:false,error:"无法确定当前监督标签页"}); return true; }
     stopTarget(tabId,msg.reason||"已停止")
@@ -774,7 +788,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_STOP_TARGET"){
+  if(msg?.type === "CONTINUE_STOP_TARGET"){
     const tabId = Number(msg.tabId)||0;
     stopTarget(tabId,msg.reason||"手动停止")
       .then(async()=>sendResponse({ok:true,activeCount:await countActiveTargets()}))
@@ -783,14 +797,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
 
-  if(msg?.type === "SUPERVISOR_APPLY_SETTINGS"){
-    applySupervisorSettings(msg.settings||{})
+  if(msg?.type === "CONTINUE_APPLY_SETTINGS"){
+    applyContinueSettings(msg.settings||{})
       .then(sendResponse)
       .catch(e=>sendResponse({ok:false,error:String(e?.message||e)}));
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_CLEAR_LOGS"){
+  if(msg?.type === "CONTINUE_CLEAR_LOGS"){
     const tabId = Number(msg.tabId)||0;
     clearTargetLogs(tabId)
       .then(()=>sendResponse({ok:true}))
@@ -798,11 +812,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if(msg?.type === "SUPERVISOR_BG_RECONCILE"){
+  if(msg?.type === "CONTINUE_BG_RECONCILE"){
     reconcileAlarm().then(()=>sendResponse({ok:true})).catch(e=>sendResponse({ok:false,error:String(e?.message||e)}));
     return true;
   }
-  if(msg?.type === "SUPERVISOR_BG_WAKE_NOW"){
+  if(msg?.type === "CONTINUE_BG_WAKE_NOW"){
     wakeTargets().then(()=>sendResponse({ok:true})).catch(e=>sendResponse({ok:false,error:String(e?.message||e)}));
     return true;
   }
@@ -815,4 +829,4 @@ ensureDownloadUiStateLoaded().then(()=>{
   }
   return resetDownloadUi();
 }).catch(()=>{});
-migrateLegacySingleTarget().then(reconcileAlarm).catch(()=>{});
+migrateLegacyNames().then(()=>migrateLegacySingleTarget()).then(reconcileAlarm).catch(()=>{});

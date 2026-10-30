@@ -90,7 +90,7 @@ vm.runInContext(source, context, { filename: 'background.js' });
   assert.equal(begin.ok, true);
   assert.equal(api.hasDownloadUiBatchLease(), true);
   assert.equal(uiCalls.at(-1).enabled, false);
-  assert.equal(sessionStore.supervisorDownloadUiSuppression.owned, true, 'suppression ownership should survive a service-worker restart');
+  assert.equal(sessionStore.continueDownloadUiSuppression.owned, true, 'suppression ownership should survive a service-worker restart');
 
   listeners.downloadCreated({ id: 1, filename: 'test.md', url: 'https://example.test/file' });
   await new Promise((resolve) => setTimeout(resolve, 520));
@@ -110,7 +110,7 @@ vm.runInContext(source, context, { filename: 'background.js' });
   await api.endDownloadUiBatch(7, 'batch-2');
   await new Promise((resolve) => setTimeout(resolve, 2200));
   assert.ok(uiCalls.filter((call) => call.enabled === true).length >= trueCallsBeforeRetryTest + 2, 'a transient restore failure should be retried');
-  assert.equal(sessionStore.supervisorDownloadUiSuppression, undefined, 'confirmed restore should clear the recovery marker');
+  assert.equal(sessionStore.continueDownloadUiSuppression, undefined, 'confirmed restore should clear the recovery marker');
 
   failNextSessionSet = true;
   const beginWithPersistenceWarning = await api.beginDownloadUiBatch(7, 11, 'batch-3');

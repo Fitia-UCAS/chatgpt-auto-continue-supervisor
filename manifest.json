@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ChatGPT 自动续作监督器",
+  "name": "ChatGPT-Continue",
   "version": "1.0.30",
-  "description": "自动续作监督器：支持折叠文件卡片展开、多文件逐项下载与失败补试、多页面监督、选项与控制台。",
+  "description": "ChatGPT-Continue：支持折叠文件卡片展开、多文件逐项下载与失败补试、多页面监督、选项与控制台。",
   "permissions": [
     "storage",
     "activeTab",
@@ -28,13 +28,13 @@
         "https://chat.openai.com/*"
       ],
       "js": [
-        "supervisor.js"
+        "continue.js"
       ],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_title": "ChatGPT 自动续作监督器",
+    "default_title": "ChatGPT-Continue",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icons/icon16.png",

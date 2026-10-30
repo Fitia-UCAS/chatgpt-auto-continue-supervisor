@@ -1,6 +1,6 @@
 const $=id=>document.getElementById(id);
 const VERSION='1.0.30';
-const SETTINGS_KEY='supervisorSettings';
+const SETTINGS_KEY='continueSettings';
 const SETTINGS_DEFAULTS={continueWithoutDownload:true};
 const els={
   statusText:$('statusText'),cycleText:$('cycleText'),targetCountText:$('targetCountText'),tabTargetCount:$('tabTargetCount'),
@@ -87,9 +87,9 @@ function setPanel(name){
   if(name==='console')renderConsole();
 }
 async function currentTab(){const [t]=await chrome.tabs.query({active:true,currentWindow:true});return t}
-async function getTarget(tabId){try{return await chrome.runtime.sendMessage({type:'SUPERVISOR_GET_TARGET',tabId})}catch{return null}}
-async function pingSupervisor(tabId){try{return await chrome.tabs.sendMessage(tabId,{type:'SUPERVISOR_PING'})}catch{return null}}
-async function pageInfo(tabId){try{return await chrome.tabs.sendMessage(tabId,{type:'SUPERVISOR_PAGE_INFO'})}catch{return null}}
+async function getTarget(tabId){try{return await chrome.runtime.sendMessage({type:'CONTINUE_GET_TARGET',tabId})}catch{return null}}
+async function pingContinue(tabId){try{return await chrome.tabs.sendMessage(tabId,{type:'CONTINUE_PING'})}catch{return null}}
+async function pageInfo(tabId){try{return await chrome.tabs.sendMessage(tabId,{type:'CONTINUE_PAGE_INFO'})}catch{return null}}
 
 async function readSettings(){
   const obj=await chrome.storage.local.get({[SETTINGS_KEY]:SETTINGS_DEFAULTS});
@@ -100,20 +100,20 @@ async function readSettings(){
 async function saveSettings(){
   settings={...settings,continueWithoutDownload:!!els.continueWithoutDownload.checked};
   await chrome.storage.local.set({[SETTINGS_KEY]:settings});
-  const res=await chrome.runtime.sendMessage({type:'SUPERVISOR_APPLY_SETTINGS',settings}).catch(()=>null);
+  const res=await chrome.runtime.sendMessage({type:'CONTINUE_APPLY_SETTINGS',settings}).catch(()=>null);
   if(!res?.ok)throw new Error(res?.error||'选项保存失败');
   localLog(settings.continueWithoutDownload?'已开启：文件下载未确认时也继续':'已开启严格下载模式：发现文件后需确认下载才继续；无文件回复仍会继续');
 }
 
-async function ensureSupervisor(tabId){
-  const first=await pingSupervisor(tabId);
+async function ensureContinue(tabId){
+  const first=await pingContinue(tabId);
   if(first?.ok&&first.version===VERSION)return true;
   if(first?.ok&&first.version&&first.version!==VERSION)throw new Error(`该页面仍运行旧版监督脚本 v${first.version}。更新扩展后请刷新这个对话页。`);
-  try{await chrome.scripting.executeScript({target:{tabId},files:['supervisor.js']})}
+  try{await chrome.scripting.executeScript({target:{tabId},files:['continue.js']})}
   catch(e){throw new Error(`监督脚本注入失败：${e?.message||e}`)}
   for(let i=0;i<10;i++){
     await new Promise(r=>setTimeout(r,100));
-    const ping=await pingSupervisor(tabId);
+    const ping=await pingContinue(tabId);
     if(ping?.ok&&ping.version===VERSION)return true;
   }
   throw new Error(`v${VERSION} 监督脚本没有响应，请刷新该 ChatGPT 对话页后再试。`);
@@ -139,22 +139,22 @@ function configFor(tabId,info,url,title=''){
 
 async function startTab(t,{quiet=false}={}){
   if(!t?.id||!t.url||!supported(t.url))throw new Error('这不是可监督的 ChatGPT 页面');
-  await ensureSupervisor(t.id);
+  await ensureContinue(t.id);
   const info=await pageInfo(t.id);
   if(!info?.ok)throw new Error('无法读取该页面状态');
   if(info.explicitMissing)throw new Error('这个对话已经删除或不存在');
   if(!supervisable(info,t.url))throw new Error('该页面不是可监督的具体对话');
-  const res=await chrome.runtime.sendMessage({type:'SUPERVISOR_START_TARGET',tabId:t.id,state:configFor(t.id,info,t.url,t.title||shortPath(t.url))});
+  const res=await chrome.runtime.sendMessage({type:'CONTINUE_START_TARGET',tabId:t.id,state:configFor(t.id,info,t.url,t.title||shortPath(t.url))});
   if(!res?.ok)throw new Error(res?.error||'无法创建监督任务');
-  await chrome.tabs.sendMessage(t.id,{type:'SUPERVISOR_REFRESH'}).catch(()=>{});
+  await chrome.tabs.sendMessage(t.id,{type:'CONTINUE_REFRESH'}).catch(()=>{});
   if(!quiet)localLog('启动命令已提交');
   return res;
 }
 
 async function stopTab(tabId,_title='',{quiet=false}={}){
-  const res=await chrome.runtime.sendMessage({type:'SUPERVISOR_STOP_TARGET',tabId,reason:'手动取消监督'}).catch(()=>null);
+  const res=await chrome.runtime.sendMessage({type:'CONTINUE_STOP_TARGET',tabId,reason:'手动取消监督'}).catch(()=>null);
   if(!res?.ok)throw new Error(res?.error||'取消监督失败');
-  await chrome.tabs.sendMessage(tabId,{type:'SUPERVISOR_REFRESH'}).catch(()=>{});
+  await chrome.tabs.sendMessage(tabId,{type:'CONTINUE_REFRESH'}).catch(()=>{});
   if(!quiet)localLog('取消命令已提交');
   return res;
 }
@@ -234,7 +234,7 @@ els.continueWithoutDownload.addEventListener('change',async()=>{
 });
 els.clearConsoleButton.addEventListener('click',async()=>{
   uiLogs=[];
-  if(currentTabId){await chrome.runtime.sendMessage({type:'SUPERVISOR_CLEAR_LOGS',tabId:currentTabId}).catch(()=>{});currentState={...currentState,logs:[]}}
+  if(currentTabId){await chrome.runtime.sendMessage({type:'CONTINUE_CLEAR_LOGS',tabId:currentTabId}).catch(()=>{});currentState={...currentState,logs:[]}}
   renderConsole();
 });
 chrome.storage.onChanged.addListener((changes,area)=>{

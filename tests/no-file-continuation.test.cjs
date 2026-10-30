@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'supervisor.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '..', 'continue.js'), 'utf8');
 const match = source.match(/function continuationDecision\([\s\S]*?\n\}/);
 assert.ok(match, 'continuationDecision should remain independently testable');
 
